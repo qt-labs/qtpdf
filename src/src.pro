@@ -1,2 +1,2 @@
 TEMPLATE = subdirs
-SUBDIRS = qpdf
+SUBDIRS = 3rdparty qpdf
