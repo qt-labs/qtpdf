@@ -4,69 +4,104 @@
 #include <QLoggingCategory>
 #include <QElapsedTimer>
 #include <QUrl>
+#include <QNetworkRequest>
+#include <QNetworkReply>
 
 Q_DECLARE_LOGGING_CATEGORY(lcExample)
 
 PageRenderer::PageRenderer()
-    : QThread(Q_NULLPTR)
-    , m_doc(new QPdfDocument(this))
-    , m_page(0)
-    , m_zoom(1.)
+    : m_networkAccessManager(new QNetworkAccessManager(this))
     , m_minRenderTime(1000000000.)
     , m_maxRenderTime(0.)
     , m_totalRenderTime(0.)
     , m_totalPagesRendered(0)
 {
+    qRegisterMetaType<QVector<QSizeF> >();
+
+    m_workerThread.start();
+    moveToThread(&m_workerThread);
+
+    connect(&m_doc, SIGNAL(documentLoadStarted()), this, SLOT(reportPageSizes()));
+    connect(&m_doc, SIGNAL(pageAvailable(int)), this, SLOT(renderPageIfRequested(int)));
 }
 
 PageRenderer::~PageRenderer()
 {
+    m_workerThread.exit();
 }
 
-QVector<QSizeF> PageRenderer::openDocument(const QUrl &location)
+void PageRenderer::openDocument(const QUrl &location)
 {
-    if (location.isLocalFile())
-        m_doc.load(location.toLocalFile());
-    else {
-        qCWarning(lcExample, "non-local file loading is not implemented");
-        return QVector<QSizeF>();
+    QMetaObject::invokeMethod(this, "loadDocumentImpl", Qt::QueuedConnection, Q_ARG(QUrl, location));
+}
+
+void PageRenderer::requestPage(int page, qreal zoom)
+{
+    QMetaObject::invokeMethod(this, "requestPageImpl", Qt::QueuedConnection, Q_ARG(int, page), Q_ARG(qreal, zoom));
+}
+
+void PageRenderer::reportPageSizes()
+{
+    QVector<QSizeF> sizes;
+    for (int i = 0, count = m_doc.pageCount(); i < count; ++i)
+        sizes << m_doc.pageSize(i);
+    emit pageSizesAvailable(sizes);
+    if (!m_renderRequests.isEmpty())
+        QMetaObject::invokeMethod(this, "renderPages", Qt::QueuedConnection);
+}
+
+void PageRenderer::loadDocumentImpl(const QUrl &url)
+{
+    m_renderRequests.clear();
+    QNetworkReply *reply = m_networkAccessManager->get(QNetworkRequest(url));
+    connect(reply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(handleNetworkRequestError()));
+    m_doc.load(reply);
+    connect(&m_doc, SIGNAL(documentLoadFinished()), reply, SLOT(deleteLater()));
+}
+
+void PageRenderer::requestPageImpl(int page, qreal zoom)
+{
+    RenderRequest newRequest;
+    newRequest.page = page;
+    newRequest.zoom = zoom;
+    m_renderRequests << newRequest;
+    if (!m_doc.isLoading())
+        QMetaObject::invokeMethod(this, "renderPages", Qt::QueuedConnection);
+}
+
+void PageRenderer::renderPages()
+{
+    for (int i = 0; i < m_renderRequests.count(); ++i) {
+        if (!m_doc.canRender(m_renderRequests.at(i).page))
+            continue;
+        RenderRequest request = m_renderRequests.takeAt(i);
+
+        QSizeF size = m_doc.pageSize(request.page) * request.zoom;
+        QElapsedTimer timer; timer.start();
+        QImage img = m_doc.render(request.page, size);
+        qreal secs = timer.nsecsElapsed() / 1000000000.0;
+        if (secs < m_minRenderTime)
+            m_minRenderTime = secs;
+        if (secs > m_maxRenderTime)
+            m_maxRenderTime = secs;
+        m_totalRenderTime += secs;
+        ++m_totalPagesRendered;
+        emit pageReady(request.page, request.zoom, img);
+
+        qCDebug(lcExample) << "page" << request.page << "zoom" << request.zoom << "size" << size << "in" << secs <<
+                              "secs; min" << m_minRenderTime <<
+                              "avg" << m_totalRenderTime / m_totalPagesRendered <<
+                              "max" << m_maxRenderTime;
+        break;
     }
-    // TODO maybe do in run() if it takes too long
-    QVector<QSizeF> pageSizes;
-    for (int page = 0; page < m_doc.pageCount(); ++page)
-        pageSizes.append(m_doc.pageSize(page));
-    return pageSizes;
 }
 
-void PageRenderer::requestPage(int page, qreal zoom, Priority priority)
+void PageRenderer::renderPageIfRequested(int page)
 {
-    // TODO maybe queue up the requests
-    m_page = page;
-    m_zoom = zoom;
-    start(priority);
+    renderPages();
 }
 
-void PageRenderer::run()
+void PageRenderer::handleNetworkRequestError()
 {
-    renderPage(m_page, m_zoom);
-}
-
-void PageRenderer::renderPage(int page, qreal zoom)
-{
-    QSizeF size = m_doc.pageSize(page) * m_zoom;
-    QElapsedTimer timer; timer.start();
-    const QImage &img = m_doc.render(page, size);
-    qreal secs = timer.nsecsElapsed() / 1000000000.0;
-    if (secs < m_minRenderTime)
-        m_minRenderTime = secs;
-    if (secs > m_maxRenderTime)
-        m_maxRenderTime = secs;
-    m_totalRenderTime += secs;
-    ++m_totalPagesRendered;
-    emit pageReady(page, zoom, img);
-
-    qCDebug(lcExample) << "page" << page << "zoom" << m_zoom << "size" << size << "in" << secs <<
-                          "secs; min" << m_minRenderTime <<
-                          "avg" << m_totalRenderTime / m_totalPagesRendered <<
-                          "max" << m_maxRenderTime;
+    qDebug() << static_cast<QNetworkReply*>(sender())->errorString();
 }

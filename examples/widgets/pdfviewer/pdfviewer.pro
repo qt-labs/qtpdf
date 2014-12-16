@@ -1,4 +1,4 @@
-QT       += core gui widgets pdf
+QT       += core gui widgets pdf network
 TARGET = pdfviewer
 TEMPLATE = app
 

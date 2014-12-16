@@ -21,6 +21,7 @@ SequentialPageWidget::SequentialPageWidget(QWidget *parent)
     , m_zoom(1.)
     , m_screenResolution(QGuiApplication::primaryScreen()->logicalDotsPerInch() / 72.0)
 {
+    connect(m_pageRenderer, SIGNAL(pageSizesAvailable(QVector<QSizeF>)), this, SLOT(preparePages(QVector<QSizeF>)));
     connect(m_pageRenderer, SIGNAL(pageReady(int, qreal, QImage)), this, SLOT(pageLoaded(int, qreal, QImage)), Qt::QueuedConnection);
 }
 
@@ -31,9 +32,7 @@ SequentialPageWidget::~SequentialPageWidget()
 
 void SequentialPageWidget::openDocument(const QUrl &url)
 {
-    m_pageSizes = m_pageRenderer->openDocument(url);
-    m_topPageShowing = 0;
-    invalidate();
+    m_pageRenderer->openDocument(url);
 }
 
 void SequentialPageWidget::setZoom(qreal factor)
@@ -64,6 +63,13 @@ void SequentialPageWidget::invalidate()
     emit zoomChanged(m_zoom);
     qCDebug(lcExample) << "total size" << m_totalSize;
     update();
+}
+
+void SequentialPageWidget::preparePages(const QVector<QSizeF> &pageSizes)
+{
+    m_pageSizes = pageSizes;
+    m_topPageShowing = 0;
+    invalidate();
 }
 
 void SequentialPageWidget::pageLoaded(int page, qreal zoom, QImage image)

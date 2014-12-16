@@ -44,11 +44,13 @@ public:
 
     QSizeF pageSize(int page) const;
 
+    bool canRender(int page) const;
     QImage render(int page, const QSizeF &pageSize);
 
 Q_SIGNALS:
     void passwordRequired();
     void documentLoadStarted();
+    void pageAvailable(int page);
     void documentLoadFinished();
     void pageCountChanged();
 

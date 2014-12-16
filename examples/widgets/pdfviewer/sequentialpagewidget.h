@@ -29,6 +29,7 @@ signals:
     void zoomChanged(qreal factor);
 
 private slots:
+    void preparePages(const QVector<QSizeF> &pageSizes);
     void pageLoaded(int page, qreal zoom, QImage image);
 
 private:

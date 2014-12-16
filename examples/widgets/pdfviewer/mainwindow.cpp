@@ -45,12 +45,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::open(const QUrl &docLocation)
 {
-    if (docLocation.isLocalFile())
-        m_pageWidget->openDocument(docLocation);
-    else {
-        qCDebug(lcExample) << docLocation << "is not a valid local file";
-        QMessageBox::critical(this, tr("Failed to open"), tr("%1 is not a valid local file").arg(docLocation.toString()));
-    }
+    m_pageWidget->openDocument(docLocation);
     qCDebug(lcExample) << docLocation;
     ui->scrollArea->ensureVisible(0, 0, 0, 0);
 }

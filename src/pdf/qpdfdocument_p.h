@@ -9,6 +9,7 @@
 #include <qbuffer.h>
 #include <qnetworkreply.h>
 #include <qpointer.h>
+#include <qbitarray.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -23,6 +24,7 @@ public:
     FPDF_AVAIL avail;
     FPDF_DOCUMENT doc;
     bool loadComplete;
+    QBitArray reportedAvailablePages;
 
     QPointer<QIODevice> device;
     QScopedPointer<QIODevice> ownDevice;

@@ -7,10 +7,11 @@
 #include <QRunnable>
 #include <QThread>
 #include <QPdfDocument>
+#include <QNetworkAccessManager>
 
 class QPdfDocument;
 
-class PageRenderer : public QThread
+class PageRenderer : public QObject
 {
     Q_OBJECT
 public:
@@ -18,24 +19,31 @@ public:
     ~PageRenderer();
 
 public slots:
-    QVector<QSizeF> openDocument(const QUrl &location);
-    void requestPage(int page, qreal zoom, Priority priority = QThread::NormalPriority);
+    void openDocument(const QUrl &location);
+    void requestPage(int page, qreal zoom);
 
 signals:
+    void pageSizesAvailable(const QVector<QSizeF> &sizes);
     void pageReady(int page, qreal zoom, QImage image);
 
-protected:
-    void run() Q_DECL_OVERRIDE;
+private slots:
+    void reportPageSizes();
+    void loadDocumentImpl(const QUrl &url);
+    void requestPageImpl(int page, qreal zoom);
+    void renderPages();
+    void renderPageIfRequested(int page);
+    void handleNetworkRequestError();
 
 private:
-    void renderPage(int page, qreal zoom);
-
-private:
+    QThread m_workerThread;
     QPdfDocument m_doc;
 
-    // current request only
-    int m_page;
-    qreal m_zoom;
+    struct RenderRequest {
+        int page;
+        qreal zoom;
+    };
+    QVector<RenderRequest> m_renderRequests;
+    QNetworkAccessManager *m_networkAccessManager;
 
     // performance statistics
     qreal m_minRenderTime;

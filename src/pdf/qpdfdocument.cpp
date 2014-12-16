@@ -57,6 +57,7 @@ void QPdfDocumentPrivate::clear()
     avail = 0;
 
     loadComplete = false;
+    reportedAvailablePages.clear();
 
     asyncBuffer.close();
     asyncBuffer.setData(QByteArray());
@@ -169,8 +170,11 @@ void QPdfDocumentPrivate::tryLoadDocument()
     updateLastError();
     if (lastError == QPdfDocument::IncorrectPasswordError)
         emit q->passwordRequired();
-    else if (doc)
+    else if (doc) {
         emit q->documentLoadStarted();
+        reportedAvailablePages.resize(FPDF_GetPageCount(doc));
+        reportedAvailablePages.fill(false);
+    }
 }
 
 void QPdfDocumentPrivate::checkComplete()
@@ -187,8 +191,14 @@ void QPdfDocumentPrivate::checkComplete()
 
     loadComplete = true;
     for (int i = 0, count = FPDF_GetPageCount(doc); i < count; ++i)
-        if (!FPDFAvail_IsPageAvail(avail, i, this))
+        if (FPDFAvail_IsPageAvail(avail, i, this)) {
+            if (!reportedAvailablePages.at(i)) {
+                reportedAvailablePages[i] = true;
+                emit q->pageAvailable(i);
+            }
+        } else {
             loadComplete = false;
+        }
     if (loadComplete)
         emit q->documentLoadFinished();
 }
@@ -285,12 +295,23 @@ QSizeF QPdfDocument::pageSize(int page) const
     return result;
 }
 
+bool QPdfDocument::canRender(int page) const
+{
+    QMutexLocker lock(pdfMutex());
+    if (!d->doc)
+        return false;
+    return d->reportedAvailablePages.at(page);
+}
+
 QImage QPdfDocument::render(int page, const QSizeF &pageSize)
 {
     if (!d->doc)
         return QImage();
 
     QMutexLocker lock(pdfMutex());
+
+    if (!FPDFAvail_IsPageAvail(d->avail, page, d.data()))
+        return QImage();
 
     FPDF_PAGE pdfPage = FPDF_LoadPage(d->doc, page);
     if (!pdfPage)

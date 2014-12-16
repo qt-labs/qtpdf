@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
     QStringList args = a.arguments();
     w.show();
     if (args.length() > 1)
-        w.open(QUrl::fromLocalFile(args[1]));
+        w.open(QUrl::fromUserInput(args[1]));
 
     return a.exec();
 }
