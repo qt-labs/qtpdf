@@ -275,3 +275,9 @@ src/qml/udis86_itab.c
 src/qml/udis86_itab.h
 
 src/lib/pdfium.pri
+src/lib/agg.pri
+src/lib/freetype.pri
+src/lib/lcms2.pri
+src/lib/libjpeg.pri
+src/lib/libopenjpeg.pri
+src/lib/zlib.pri
