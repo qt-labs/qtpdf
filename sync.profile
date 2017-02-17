@@ -1,5 +1,6 @@
 %modules = ( # path to module name map
     "QtPdf" => "$basedir/src/pdf",
+    "QtPdfWidgets" => "$basedir/src/pdfwidgets",
 );
 # Module dependencies.
 # Every module that is required to build this module should have one entry.
